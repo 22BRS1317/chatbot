@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.3/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(145deg, #1a1a2e, #16213e);
+            color: #e5e5e5;
+            overflow: hidden;
+        }
+
+        .dark-theme {
+            background: linear-gradient(145deg, #121212, #292929);
+            box-shadow: 10px 10px 20px #0d0d0d, -10px -10px 20px #323232;
+        }
+
+        .input-focus:hover, .input-focus:focus {
+            border-color: #4f46e5;
+            box-shadow: 0px 0px 8px rgba(79, 70, 229, 0.8);
+            transform: translateY(-2px);
+            transition: all 0.3s ease-in-out;
+        }
+
+        .spinner {
+            border: 3px solid rgba(243, 243, 243, 0.3);
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin-left: 10px;
+            box-shadow: 0px 0px 10px rgba(52, 152, 219, 0.6);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        .message-bubble {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            max-width: 60%;
+            margin: 0.5rem 0;
+            transition: all 0.5s;
+        }
+
+        .user-message {
+            background-color: #4f46e5;
+            color: white;
+            align-self: flex-end;
+            animation: slideInRight 0.5s;
+        }
+
+        .ai-message {
+            background-color: #4b5563;
+            color: #e5e5e5;
+            align-self: flex-start;
+            animation: slideInLeft 0.5s;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideInLeft {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body class="dark-theme h-screen flex flex-col justify-between">
+    <div class="flex-grow overflow-y-auto p-4 space-y-4" id="chatDisplay">
+        <div class="text-center text-gray-400">Welcome to our AI Chatbot. Type below to start conversation.</div>
+    </div>
+    <div class="p-4">
+        <div class="flex items-center">
+            <input type="text" id="userInput" class="flex-grow p-3 rounded border-2 border-gray-600 text-black input-focus"
+                   placeholder="Type your message here..." />
+            <button id="sendBtn" class="ml-2 bg-blue-600 text-white p-3 rounded hover:bg-blue-700">Send</button>
+            <div id="spinner" class="spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('sendBtn').addEventListener('click', handleUserMessage);
+        document.getElementById('userInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') handleUserMessage();
+        });
+
+        function handleUserMessage() {
+            const userInput = document.getElementById('userInput');
+            const message = userInput.value.trim();
+            if (!message) return;
+            
+            displayMessage('user', message);
+            userInput.value = '';
+
+            if (message.toLowerCase().startsWith("draw")) {
+                generateImageResponse(message);
+            } else {
+                generateAIResponse(message);
+            }
+        }
+
+        function displayMessage(sender, message) {
+            const chatDisplay = document.getElementById('chatDisplay');
+            const messageBubble = document.createElement('div');
+            messageBubble.className = `message-bubble ${sender === 'user' ? 'user-message' : 'ai-message'}`;
+            
+            if (sender === 'ai' && message.startsWith("http")) {
+                const imgElement = document.createElement('img');
+                imgElement.src = message;
+                imgElement.className = "rounded-lg max-w-full h-auto";
+                messageBubble.appendChild(imgElement);
+            } else {
+                messageBubble.appendChild(document.createTextNode(message));
+            }
+
+            chatDisplay.appendChild(messageBubble);
+            chatDisplay.scrollTop = chatDisplay.scrollHeight;
+
+            saveMessage(sender, message);
+        }
+
+        function generateAIResponse(userMessage) {
+            const spinner = document.getElementById('spinner');
+            spinner.style.display = 'block';
+            fetch("https://backend.buildpicoapps.com/aero/run/llm-api?pk=v1-Z0FBQUFBQm4wR2tKaWlGdTRMN3JLYjZWYnllSmxhbEk1Q29Jb1B4Ql95Szl5NUxsajJSM0JKU0kzR1YxZ3BjRGVxcWFrUS1LcU44NVl3a003NlNYM2F1N3JsQ1V1U1BLMmc9PQ==", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt: userMessage })
+            })
+            .then(response => response.json())
+            .then(data => {
+                spinner.style.display = 'none';
+                if (data.status === 'success') {
+                    displayMessage('ai', data.text);
+                } else {
+                    displayMessage('ai', "Sorry, there was an error processing your request.");
+                    console.error("Error:", data);
+                }
+            })
+            .catch(error => {
+                spinner.style.display = 'none';
+                displayMessage('ai', "Network error, please try again later.");
+                console.error("Network error:", error);
+            });
+        }
+
+        function generateImageResponse(imagePrompt) {
+            const spinner = document.getElementById('spinner');
+            spinner.style.display = 'block';
+            fetch("https://backend.buildpicoapps.com/aero/run/image-generation-api?pk=v1-Z0FBQUFBQm4wR21nRDVpa1VOYkhGNnYySEZUSUJrOVp1TnZtWWp1ejV4T1BfVUkzUWVJM0hBWnA4R1ZNQmZqN1dsTkp0RlhwakRJdFJnN2hLSWdXWlpXZkx3X0V0cS1LRXc9PQ==", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt: imagePrompt })
+            })
+            .then(response => response.json())
+            .then(data => {
+                spinner.style.display = 'none';
+                if (data.status === 'success') {
+                    displayMessage('ai', data.imageUrl);
+                } else {
+                    displayMessage('ai', "Sorry, there was an error generating the image.");
+                    console.error("Error:", data);
+                }
+            })
+            .catch(error => {
+                spinner.style.display = 'none';
+                displayMessage('ai', "Network error, please try again later.");
+                console.error("Network error:", error);
+            });
+        }
+
+        function saveMessage(sender, message) {
+            const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+            chatHistory.push({ sender, message });
+            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+        }
+
+        window.onload = function () {
+            const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+            chatHistory.forEach(chat => displayMessage(chat.sender, chat.message));
+        };
+    </script>
+</body>
+</html>
